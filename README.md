@@ -24,12 +24,12 @@ npm test             # симуляция партий ботов на всех 
 2. `npx wrangler deploy` — игра уже работает на `*.workers.dev` (комната = durable object, статика из `public/`)
 3. рейтинг и турнир (по желанию):
    ```bash
-   npx wrangler d1 create roworld          # скопируйте database_id
+   npx wrangler d1 create clashwars          # скопируйте database_id
    # раскомментируйте блок [[d1_databases]] в wrangler.toml и вставьте id
-   npx wrangler d1 execute roworld --remote --file=schema.sql
+   npx wrangler d1 execute clashwars --remote --file=schema.sql
    npx wrangler deploy
    ```
-своё имя домена — в панели cloudflare: workers → roworld → settings → domains.
+своё имя домена — в панели cloudflare: workers → clashwars → settings → domains.
 
 ## структура
 

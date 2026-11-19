@@ -1,4 +1,4 @@
-name = "roworld"
+name = "clashwars"
 main = "worker/index.js"
 compatibility_date = "2026-11-01"
 
@@ -19,5 +19,5 @@ new_sqlite_classes = ["RoomDO"]
 # рейтинг и турнир (необязательно). шаги в README: создать базу, вставить database_id, раскомментировать
 # [[d1_databases]]
 # binding = "DB"
-# database_name = "roworld"
+# database_name = "clashwars"
 # database_id = "ВСТАВЬТЕ_ID"
