@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#07121f">
 <title>ClashWars</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2714%27 fill=%27%23ff9d1f%27/%3E%3Cpath d=%27M8 20l5-9 4 6 3-4 4 7z%27 fill=%27%230b2440%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -25,7 +26,7 @@
     <div class="welcome">командир <input id="name" maxlength="16" placeholder="ваш ник" autocomplete="off"></div>
     <div class="row2">
       <button id="solo" class="play">▶ играть соло</button>
-      <select id="soloMap" title="карта"></select>
+      <select id="soloMap" title="карта"></select><select id="soloDiff" title="сложность"></select>
     </div>
     <div class="sect">публичные матчи</div>
     <div class="match"><div><b>открытая игра</b><small>классика · 30 мин · до 8 игроков</small></div><button id="quick">войти</button></div>
@@ -47,6 +48,7 @@
     <div class="opts" id="lobbyOpts">
       <label>карта <select id="optMap"></select></label>
       <label>режим <select id="optMode"></select></label>
+      <label>боты <select id="optDiff"></select></label>
     </div>
     <ul id="lobbyPlayers"></ul>
     <p class="sub">свободные нации займут боты (всего 13)</p>
@@ -58,10 +60,10 @@
 <!-- игра -->
 <section id="game" class="screen hidden">
   <div id="top">
-    <span>💰 <b id="gold">0</b></span>
-    <span>🌍 <b id="share">0%</b></span>
-    <span>⏱ <b id="time">30:00</b></span>
-    <span class="sp"><button id="chatBtn">💬</button><button id="zin">＋</button><button id="zout">−</button><button id="gleave">выйти</button></span>
+    <span class="pill">💰 <b id="gold">0</b></span>
+    <span class="goal" title="доля вашей территории"><span class="bar"><i id="goalBar"></i><u id="goalMark"></u></span><b id="share">0%</b></span>
+    <span class="pill">⏱ <b id="time">30:00</b></span>
+    <span class="sp"><button id="focusBtn" title="к моей стране (пробел)">🎯</button><button id="techBtn" title="технологии (T)">🔬</button><button id="muteBtn" title="звук (M)">🔊</button><button id="chatBtn" title="чат">💬</button><button id="zin">＋</button><button id="zout">−</button><button id="gleave">выйти</button></span>
   </div>
   <div id="wrap">
     <canvas id="c"></canvas>
@@ -69,11 +71,16 @@
     <div id="feed"></div>
     <div id="invites"></div>
     <div class="chat hidden" id="gameChat"><div class="log"></div><input maxlength="140" placeholder="сообщение…" autocomplete="off"></div>
+    <div id="tut" class="hidden"><div class="panel-card">
+      <h2>быстрый старт</h2>
+      <ol class="rules"><li>нажмите на свою цветную провинцию: красным пунктиром подсветятся цели для атаки</li><li>нажмите на цель, выберите долю войск и «атаковать». видно ваши силы против защиты</li><li>тратьте золото: 🏙 города, 🛡 форты, 🔬 технологии (кнопка сверху)</li><li>через море нужны ⚓ порт и флот. береги столицу — потеряешь половину казны</li></ol>
+      <button id="tutOk" class="play">поехали</button></div></div>
     <div id="end"><div id="endtxt"></div><table id="endtbl"></table><button id="again">в лобби</button></div>
   </div>
   <div id="panel"></div>
 </section>
 
+<div id="tech" class="modal hidden"><div class="panel-card wide"><h2>🔬 технологии</h2><div id="techList"></div><button class="closeBtn">закрыть</button></div></div>
 <!-- рейтинг -->
 <div id="board" class="modal hidden"><div class="panel-card wide">
   <h2>🏆 рейтинг</h2>

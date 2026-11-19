@@ -1,5 +1,5 @@
 import { Game } from './game.js';
-import { MAX_HUMANS, MAPS, MODES } from '../public/shared/consts.js';
+import { MAX_HUMANS, MAPS, MODES, DIFFS } from '../public/shared/consts.js';
 
 const send = (ws, o) => { try { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); } catch { /* сокет закрыт */ } };
 const AUTO_START_MS = 25000;
@@ -11,7 +11,7 @@ export const dayNumber = () => Math.floor(Date.now() / 86400000);
 export class Room {
   constructor(code, opts, env = {}) {
     this.code = code;
-    this.opts = { map: 'random', mode: 'classic', pub: false, daily: false, seed: null, startAt: 0, day: 0, ...opts };
+    this.opts = { map: 'random', mode: 'classic', diff: 'normal', pub: false, daily: false, seed: null, startAt: 0, day: 0, ...opts };
     this.store = env.store || null; this.onEmpty = env.onEmpty || (() => {});
     this.players = new Map(); // token -> {token, ws, name, pid, nid, lastChat}
     this.phase = 'lobby'; this.game = null; this.host = null;
@@ -76,7 +76,7 @@ export class Room {
   lobbyMsg() {
     return {
       t: 'lobby', code: this.code, pub: this.opts.pub, daily: this.opts.daily, host: this.host,
-      map: this.opts.map, mode: this.opts.mode,
+      map: this.opts.map, mode: this.opts.mode, diff: this.opts.diff,
       startsIn: this.autoAt ? Math.max(0, Math.ceil((this.autoAt - Date.now()) / 1000)) : null,
       players: [...this.players.values()].map(p => ({ name: p.name, host: p.token === this.host, online: !!p.ws })),
     };
@@ -99,7 +99,7 @@ export class Room {
     pls.forEach((p, i) => { p.nid = i; });
     for (const [tk, p] of this.players) if (!p.ws) this.players.delete(tk);
     const seed = this.opts.seed ?? ((Math.random() * 2 ** 31) | 0);
-    this.game = new Game(seed, pls.map(p => p.name), { map, mode });
+    this.game = new Game(seed, pls.map(p => p.name), { map, mode, diff: this.opts.diff });
     this.phase = 'playing'; this.autoAt = 0;
     for (const p of pls) send(p.ws, this.initMsg(p));
     this.pushState();
@@ -110,7 +110,7 @@ export class Room {
     const g = this.game;
     return {
       t: 'init', me: pl.nid, map: g.initPayload(), limit: g.limit, mode: g.mode, win: g.winShare,
-      nations: g.N.map(n => ({ id: n.id, name: n.name, hue: n.hue, human: n.human, team: n.team, type: n.human ? 'human' : n.type })),
+      nations: g.N.map(n => ({ id: n.id, name: n.name, hue: n.hue, human: n.human, team: n.team, cap: n.cap, type: n.human ? 'human' : n.type })),
     };
   }
 
@@ -149,6 +149,7 @@ export class Room {
     const g = this.game;
     for (const e of g.ev) for (const p of this.online) if (e.to === 'all' || e.to === p.nid) send(p.ws, { t: 'ev', text: e.text, kind: e.kind });
     g.ev = [];
+    if (g.fx.length) { this.broadcast({ t: 'fx', list: g.fx.slice(0, 40) }); g.fx = []; }
   }
   pushState() { for (const p of this.online) if (p.nid >= 0) send(p.ws, { t: 'state', ...this.game.snapshot(p.nid) }); }
   broadcast(m) { for (const p of this.online) send(p.ws, m); }
@@ -159,6 +160,7 @@ export class Room {
     if (m.t === 'opts' && this.phase === 'lobby' && ws.token === this.host && !this.opts.pub && !this.opts.daily) {
       if (MAPS[m.map]) this.opts.map = m.map;
       if (MODES[m.mode] && m.mode !== 'daily') this.opts.mode = m.mode;
+      if (DIFFS[m.diff]) this.opts.diff = m.diff;
       this.opts.mapFixed = true; return this.sendLobby();
     }
     if (m.t === 'chat') {

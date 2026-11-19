@@ -1,7 +1,7 @@
 // cloudflare worker: статика + маршрутизация websocket в durable object (одна комната = один объект)
 import { Room, dayNumber } from '../server/room.js';
 import { D1Store } from './d1-store.js';
-import { MAPS } from '../public/shared/consts.js';
+import { MAPS, DIFFS } from '../public/shared/consts.js';
 
 const MAP_KEYS = Object.keys(MAPS);
 const QUICK_MS = 25000;
@@ -53,6 +53,7 @@ export default {
         code = 'B' + b; opts = { pub: true, mode: 'blitz', startAt: (b + 1) * QUICK_MS };
       } else if (mode === 'solo') {
         code = rndCode(); opts = { startAt: Date.now() + 800 };
+        if (DIFFS[q.get('diff')]) opts.diff = q.get('diff');
         if (MAPS[q.get('map')]) { opts.map = q.get('map'); opts.mapFixed = true; }
       } else if (mode === 'daily') {
         const day = dayNumber(); code = 'D' + rndCode() + day;

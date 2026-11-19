@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
 import { Room, dayNumber } from './room.js';
 import { FileStore } from './store-file.js';
-import { MAPS } from '../public/shared/consts.js';
+import { MAPS, DIFFS } from '../public/shared/consts.js';
 
 const pub = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = process.env.PORT || 3000;
@@ -39,7 +39,7 @@ wss.on('connection', (ws, req) => {
   if (code) room = rooms.get(code);
   else if (mode === 'quick') room = [...rooms.values()].find(r => r.opts.pub && r.phase === 'lobby' && r.players.size < 8) || makeRoom({ pub: true });
   else if (mode === 'blitz') room = [...rooms.values()].find(r => r.opts.pub && r.opts.mode === 'blitz' && r.phase === 'lobby' && r.players.size < 8) || makeRoom({ pub: true, mode: 'blitz' });
-  else if (mode === 'solo') room = makeRoom({ startAt: Date.now() + 800, ...(MAPS[q.get('map')] ? { map: q.get('map'), mapFixed: true } : {}) });
+  else if (mode === 'solo') room = makeRoom({ startAt: Date.now() + 800, ...(DIFFS[q.get('diff')] ? { diff: q.get('diff') } : {}), ...(MAPS[q.get('map')] ? { map: q.get('map'), mapFixed: true } : {}) });
   else if (mode === 'create') room = makeRoom({});
   else if (mode === 'daily') {
     const day = dayNumber();

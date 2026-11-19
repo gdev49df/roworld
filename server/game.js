@@ -1,6 +1,6 @@
 import { generateMap } from './map.js';
 import { rng } from '../public/shared/rng.js';
-import { COST, NNAT, TYPES, AGGR, BOT_NAMES, MODES } from '../public/shared/consts.js';
+import { COST, NNAT, TYPES, AGGR, BOT_NAMES, MODES, TECH_COST, TECH_NAME } from '../public/shared/consts.js';
 
 // авторитетная игровая логика: клиенты только шлют команды
 export class Game {
@@ -8,6 +8,10 @@ export class Game {
     this.mapName = opts.map || 'random'; this.mode = opts.mode || 'classic';
     const M = MODES[this.mode] || MODES.classic;
     this.limit = M.time; this.winShare = M.win; this.mult = M.mult;
+    this.diff = opts.diff || 'normal';
+    this.diffA = { easy: .6, normal: 1, hard: 1.25 }[this.diff] || 1; // агрессия ботов
+    this.diffI = { easy: .8, normal: 1, hard: 1.3 }[this.diff] || 1; // доход ботов
+    this.fx = [];
     this.r = rng(seed ^ 0x9e3779b9);
     const m = generateMap(seed, this.mapName);
     this.W = m.W; this.H = m.H; this.P = m.P; this.pid = m.pid; this.totalLand = m.totalLand;
@@ -25,7 +29,7 @@ export class Game {
         id: i, human, online: human, alive: true, gold: human ? 120 : 80,
         name: human ? humanNames[i] : BOT_NAMES[i - humanNames.length] || ('Нация ' + i),
         hue: Math.round(i * 360 / NNAT), allies: new Set(), enemies: new Set(),
-        team: teamsOn && human ? i % 2 : -1,
+        team: teamsOn && human ? i % 2 : -1, cap: -1, tech: { eco: 0, atk: 0, def: 0 },
         type: TYPES[Math.floor(this.r() * TYPES.length)],
       });
     }
@@ -40,7 +44,7 @@ export class Game {
       starts.push(best);
     }
     starts.forEach((s, i) => {
-      this.owner[s.id] = i; this.troops[s.id] = 15; let k = 0;
+      this.owner[s.id] = i; this.N[i].cap = s.id; this.troops[s.id] = 25; let k = 0;
       for (const j of s.nb) if (this.owner[j] === -1 && k < 2) { this.owner[j] = i; this.troops[j] = 12; k++; }
       for (const j of this.mine(i)) if (P[j].isCoast) { this.port[j] = 1; this.fleet[j] = 6; }
     });
@@ -63,17 +67,20 @@ export class Game {
     return r;
   }
 
-  attack(nid, t, bot) {
+  attack(nid, t, bot, frac = .7) {
     const prev = this.owner[t];
     if (prev === nid) return false;
     if (this.allied(nid, prev)) { if (!bot) this.say(nid, 'нельзя атаковать союзника — сначала разорвите союз', 'warn'); return false; }
     const a = this.attackers(nid, t);
     if (!a.length) { if (!bot) this.say(nid, this.P[t].sea.some(i => this.owner[i] === nid) ? 'для морской атаки нужен порт и флот (от 2 кораблей)' : 'рядом нет ваших провинций с войсками', 'warn'); return false; }
-    const def = this.troops[t] * (1 + .5 * this.fort[t]);
-    const sendOf = ([q, , sea]) => Math.min(Math.floor(this.troops[q] * .7), sea ? this.fleet[q] * 6 : 1e9);
+    const atkK = 1 + .15 * this.N[nid].tech.atk, defK = prev >= 0 ? 1 + .2 * this.N[prev].tech.def : 1;
+    const def = this.troops[t] * (1 + .5 * this.fort[t]) * defK;
+    const sendOf = ([q, , sea]) => Math.min(Math.floor(this.troops[q] * frac), sea ? this.fleet[q] * 6 : 1e9);
     let tot = 0; for (const x of a) tot += sendOf(x);
+    tot *= atkK;
     if (bot && tot < def * 1.15) return false;
     for (const x of a) { const s = sendOf(x); this.troops[x[0]] -= s; if (x[2]) this.fleet[x[0]] = Math.max(1, Math.floor(this.fleet[x[0]] * .8)); }
+    this.fx.push({ k: 'atk', n: nid, from: a.map(x => [x[0], x[2] ? 1 : 0]), to: t, win: tot > def });
     if (prev >= 0 && !this.N[prev].enemies.has(nid)) {
       this.N[prev].enemies.add(nid);
       for (const z of this.N[prev].allies) if (!this.N[z].enemies.has(nid)) { this.N[z].enemies.add(nid); this.say(z, `союзник ${this.N[prev].name} атакован: ${this.N[nid].name}`, 'warn'); }
@@ -81,10 +88,17 @@ export class Game {
     if (tot > def) {
       this.owner[t] = nid; this.troops[t] = Math.max(1, Math.floor(tot - def));
       this.fort[t] = Math.max(0, this.fort[t] - 1); this.N[nid].gold += 10; this.block[t] = 0;
-      if (prev >= 0) { this.say(prev, `${this.N[nid].name} захватил вашу провинцию`, 'bad'); this.checkDead(prev); }
+      if (prev >= 0) {
+        this.say(prev, `${this.N[nid].name} захватил вашу провинцию`, 'bad');
+        if (this.N[prev].cap === t) { // падение столицы: победитель забирает половину казны
+          const loot = Math.floor(this.N[prev].gold * .5); this.N[prev].gold -= loot; this.N[nid].gold += loot; this.N[prev].cap = -1;
+          this.say('all', `столица ${this.N[prev].name} пала! ${this.N[nid].name} забрал ${loot} золота`, 'bad');
+        }
+        this.checkDead(prev);
+      }
       if (!bot || prev >= 0) this.say(nid, prev >= 0 ? `захвачена провинция ${this.N[prev].name}` : 'захвачена нейтральная провинция', 'good');
     } else {
-      this.troops[t] = Math.max(0, Math.floor(this.troops[t] - tot / (1 + .5 * this.fort[t])));
+      this.troops[t] = Math.max(0, Math.floor(this.troops[t] - tot / ((1 + .5 * this.fort[t]) * defK)));
       if (!bot) this.say(nid, 'атака отбита, защитник ослаблен', 'warn');
       if (prev >= 0) this.say(prev, `${this.N[nid].name} атаковал вас — отбились`, 'info');
     }
@@ -100,6 +114,7 @@ export class Game {
     for (const i of [...tp.sea, ...tp.nb]) if (this.owner[i] === nid && this.port[i] && this.fleet[i] >= 3) ships.push(i);
     if (!ships.length) { this.say(nid, 'нужен ваш порт рядом с флотом от 3 кораблей', 'warn'); return; }
     let tot = 0; for (const i of ships) { tot += Math.floor(this.fleet[i] * .8); this.fleet[i] -= Math.floor(this.fleet[i] * .8); }
+    this.fx.push({ k: 'blk', n: nid, from: ships, to: t, win: tot > this.fleet[t] });
     if (tot > this.fleet[t]) {
       this.fleet[t] = 0; this.block[t] = 40;
       this.say(nid, 'порт заблокирован на 40 с', 'good'); this.say(prev, `${this.N[nid].name} блокировал ваш порт!`, 'bad');
@@ -117,6 +132,7 @@ export class Game {
   }
 
   nuke(t, by) {
+    this.fx.push({ k: 'nuke', n: by, to: t });
     this.troops[t] = 0; this.fort[t] = 0; this.city[t] = 0; this.fleet[t] = 0;
     for (const q of this.nbAll(t)) this.troops[q] = Math.floor(this.troops[q] * .3);
     const o = this.owner[t];
@@ -134,6 +150,13 @@ export class Game {
       else this.say(extra.from, `${me.name} отказал в союзе`, 'warn');
       return;
     }
+    if (k === 'tech') {
+      const w = extra && extra.which, t = me.tech;
+      if (!['eco', 'atk', 'def'].includes(w) || t[w] >= 3) return;
+      const cost = TECH_COST[t[w]];
+      if (me.gold >= cost) { me.gold -= cost; t[w]++; this.say(nid, `изучено: ${TECH_NAME[w]} ${t[w]}`, 'good'); }
+      return;
+    }
     if (!Number.isInteger(p) || p < 0 || p >= this.P.length) return;
     const own = this.owner[p] === nid, o = this.owner[p];
     if (own) {
@@ -144,7 +167,7 @@ export class Game {
       else if (k === 'ship' && this.port[p] && this.fleet[p] < 40 && me.gold >= COST.ship) { me.gold -= COST.ship; this.fleet[p] = Math.min(40, this.fleet[p] + 5); }
       return;
     }
-    if (k === 'attack') this.attack(nid, p, false);
+    if (k === 'attack') { const pc = +(extra && extra.pct); this.attack(nid, p, false, [30, 60, 100].includes(pc) ? pc / 100 : .7); }
     else if (k === 'blockade') this.blockade(nid, p);
     else if (k === 'nuke') { if (me.gold >= COST.nuke) { me.gold -= COST.nuke; this.nuke(p, nid); this.say(nid, 'бомба сброшена', 'good'); } }
     else if (k === 'gift' && o >= 0 && me.gold >= COST.gift) {
@@ -175,6 +198,7 @@ export class Game {
     } else if (n.gold >= COST.fort && (n.type === 'defender' || this.r() < .1)) {
       const p = pick(); if (this.fort[p] < 3) { this.fort[p]++; n.gold -= COST.fort; }
     }
+    if (this.r() < .06) { const w = ['eco', 'atk', 'def'][this.rnd(3)]; if (n.tech[w] < 3 && n.gold >= TECH_COST[n.tech[w]] + 60) { n.gold -= TECH_COST[n.tech[w]]; n.tech[w]++; } }
     // порты и флот
     if (n.gold >= COST.port && this.r() < .15) { const p = pick(); if (this.P[p].isCoast && !this.port[p]) { this.port[p] = 1; this.fleet[p] = 3; n.gold -= COST.port; } }
     if (n.gold >= COST.ship && this.r() < .25) { const p = pick(); if (this.port[p] && this.fleet[p] < 12) { this.fleet[p] += 5; n.gold -= COST.ship; } }
@@ -200,7 +224,7 @@ export class Game {
       const o = [...n.allies][this.rnd(n.allies.size)]; this.breakAlly(n.id, o);
       this.say(o, `${n.name} предал союз!`, 'bad');
     }
-    if (this.r() > AGGR[n.type]) return;
+    if (this.r() > Math.min(1, AGGR[n.type] * this.diffA)) return;
     let best = -1, bs = 1e9;
     for (const p of mine) {
       if (this.troops[p] <= 8) continue;
@@ -239,7 +263,10 @@ export class Game {
       if (o >= 0) {
         const cap = 60 + 30 * this.city[p];
         if (this.troops[p] < cap) this.troops[p] = Math.min(cap, this.troops[p] + k * (.5 + .15 * this.city[p] + this.P[p].cells.length * .012));
-        if (this.block[p] <= 0) this.N[o].gold += k * (.8 + this.city[p] * 3 + (this.port[p] ? 1 : 0));
+        if (this.block[p] <= 0) {
+          const nn = this.N[o];
+          nn.gold += k * (.8 + this.city[p] * 3 + (this.port[p] ? 1 : 0) + (nn.cap === p ? 2 : 0)) * (1 + .25 * nn.tech.eco) * (nn.online ? 1 : this.diffI);
+        }
       } else if (this.troops[p] < 10) this.troops[p] += .08;
     }
     for (const n of this.N) if (n.alive && !n.online) this.botTurn(n);
@@ -282,7 +309,7 @@ export class Game {
       k: this.tickNo, o: this.owner, tr: this.troops.map(Math.floor), ci: this.city, fo: this.fort,
       pt: this.port, fl: this.fleet, bl: this.block.map(b => b > 0 ? 1 : 0),
       cnt: this.shares(), alive: this.N.map(n => n.alive ? 1 : 0), on: this.N.map(n => n.online ? 1 : 0),
-      gold: me ? Math.floor(me.gold) : 0, al: me ? [...me.allies] : [], en: me ? [...me.enemies] : [],
+      cap: this.N.map(n => n.cap), tech: me ? me.tech : null, gold: me ? Math.floor(me.gold) : 0, al: me ? [...me.allies] : [], en: me ? [...me.enemies] : [],
     };
   }
 }

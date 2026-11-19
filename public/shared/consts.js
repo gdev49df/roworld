@@ -16,3 +16,6 @@ export const MODES = {
 // название игры — меняется в одном месте
 export const GAME_NAME = 'ClashWars';
 export const TAGLINE = 'захвати весь мир';
+export const TECH_COST = [100, 200, 350];
+export const TECH_NAME = { eco: 'экономика', atk: 'атака', def: 'оборона' };
+export const DIFFS = { easy: 'легко', normal: 'нормально', hard: 'сложно' };
