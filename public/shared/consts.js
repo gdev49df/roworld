@@ -14,5 +14,5 @@ export const MODES = {
   daily: { name: 'ежедневный турнир (15 мин)', time: 900, win: .8, mult: 1.5 },
 };
 // название игры — меняется в одном месте
-export const GAME_NAME = 'Borderline';
+export const GAME_NAME = 'Terra Clash';
 export const TAGLINE = 'захвати весь мир';
