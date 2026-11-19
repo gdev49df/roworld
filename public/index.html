@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0a1624">
+<title>roworld — онлайн-стратегия</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<!-- меню -->
+<section id="menu" class="screen">
+  <div class="card">
+    <h1>roworld</h1>
+    <p class="sub">захвати 80% карты раньше остальных</p>
+    <input id="name" maxlength="16" placeholder="ваш ник" autocomplete="off">
+    <button id="quick" class="primary">быстрая игра</button>
+    <button id="create">создать свою комнату</button>
+    <div class="join"><input id="code" maxlength="4" placeholder="код" autocomplete="off"><button id="join">войти</button></div>
+    <p id="menuErr" class="err"></p>
+  </div>
+</section>
+
+<!-- лобби -->
+<section id="lobby" class="screen hidden">
+  <div class="card">
+    <h2>комната <b id="lobbyCode"></b></h2>
+    <p class="sub" id="lobbyInfo"></p>
+    <ul id="lobbyPlayers"></ul>
+    <p class="sub">свободные нации займут боты (до 13 в сумме)</p>
+    <button id="start" class="primary">начать игру</button>
+    <button id="leave">выйти</button>
+  </div>
+</section>
+
+<!-- игра -->
+<section id="game" class="screen hidden">
+  <div id="top">
+    <span>💰 <b id="gold">0</b></span>
+    <span>🌍 <b id="share">0%</b></span>
+    <span>⏱ <b id="time">30:00</b></span>
+    <span class="sp"><button id="zin">＋</button><button id="zout">−</button><button id="gleave">выйти</button></span>
+  </div>
+  <div id="wrap">
+    <canvas id="c"></canvas>
+    <div id="list"></div>
+    <div id="feed"></div>
+    <div id="invites"></div>
+    <div id="end"><div id="endtxt"></div><button id="again">в лобби</button></div>
+  </div>
+  <div id="panel"></div>
+</section>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

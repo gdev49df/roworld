@@ -1,0 +1,41 @@
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#0a1624;color:#e8eef5;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
+.hidden{display:none!important}
+.screen{height:100%}
+#menu,#lobby{display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:#101f33;border:1px solid #1d3552;border-radius:16px;padding:24px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:10px}
+h1{font-size:34px;letter-spacing:1px}h2{font-size:20px}
+.sub{color:#8fa5bf;font-size:13px}
+.err{color:#ff7a7a;font-size:13px;min-height:16px}
+input{background:#0a1624;border:1px solid #2c4d78;color:#e8eef5;border-radius:10px;padding:11px 12px;font-size:15px;width:100%}
+button{background:#1d3552;color:#e8eef5;border:1px solid #2c4d78;border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer}
+button:hover:not(:disabled){background:#2a4b77}
+button:disabled{opacity:.35;cursor:default}
+button.primary{background:#3b7bd1;border-color:#5b9bf0;font-weight:600}
+.join{display:flex;gap:8px}.join input{text-transform:uppercase;letter-spacing:3px;text-align:center}
+#lobbyPlayers{list-style:none;display:flex;flex-direction:column;gap:6px}
+#lobbyPlayers li{background:#0a1624;border-radius:8px;padding:8px 10px;font-size:14px;display:flex;justify-content:space-between}
+#lobbyPlayers li.off{opacity:.45}
+#game{display:flex;flex-direction:column}
+#top{display:flex;gap:14px;align-items:center;padding:8px 12px;background:#101f33;border-bottom:1px solid #1d3552;font-size:14px}
+#top b{color:#ffd45e}#top .sp{margin-left:auto;display:flex;gap:4px}
+#top button{padding:6px 10px}
+#wrap{position:relative;flex:1;min-height:0}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+#list{position:absolute;top:8px;right:8px;background:rgba(10,22,36,.82);border:1px solid #1d3552;border-radius:10px;padding:8px 10px;font-size:12px;min-width:150px;pointer-events:none}
+#list div{display:flex;align-items:center;gap:6px;padding:1px 0}
+#list i{width:10px;height:10px;border-radius:3px;display:inline-block}
+#list span:last-child{margin-left:auto;color:#9fb4cc}
+#list .me{font-weight:700}
+#feed{position:absolute;left:8px;bottom:8px;display:flex;flex-direction:column;gap:4px;pointer-events:none;max-width:70%}
+#feed div{background:rgba(0,0,0,.72);padding:5px 10px;border-radius:8px;font-size:12px;animation:in .2s}
+#feed .bad{border-left:3px solid #ff6b6b}#feed .good{border-left:3px solid #5fd16f}#feed .warn{border-left:3px solid #ffd45e}
+@keyframes in{from{opacity:0;transform:translateY(6px)}}
+#invites{position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:6px}
+#invites div{background:#101f33;border:1px solid #3b7bd1;border-radius:10px;padding:8px 10px;font-size:13px;display:flex;gap:8px;align-items:center}
+#invites button{padding:4px 9px;font-size:12px}
+#panel{background:#101f33;border-top:1px solid #1d3552;padding:8px 12px;min-height:84px;font-size:14px}
+#panel .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+#panel .hint{color:#8fa5bf}
+#end{position:absolute;inset:0;background:rgba(5,10,18,.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-size:24px;text-align:center;padding:20px}
+#end.show{display:flex}
