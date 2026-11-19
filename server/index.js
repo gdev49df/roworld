@@ -3,19 +3,22 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
-import { Room } from './room.js';
+import { Room, dayNumber } from './room.js';
+import { FileStore } from './store-file.js';
+import { MAPS } from '../public/shared/consts.js';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const pub = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = process.env.PORT || 3000;
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
+const store = new FileStore();
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   let url = decodeURIComponent((req.url || '/').split('?')[0]);
   if (url === '/health') { res.end('ok'); return; }
+  if (url === '/api/leaderboard') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(await store.leaderboard(dayNumber()))); return; }
   if (url === '/') url = '/index.html';
-  const base = url.startsWith('/shared/') ? root : path.join(root, 'public');
-  const file = path.normalize(path.join(base, url));
-  if (!file.startsWith(base + path.sep) && file !== base) { res.writeHead(403); res.end(); return; }
+  const file = path.normalize(path.join(pub, url));
+  if (!file.startsWith(pub + path.sep)) { res.writeHead(403); res.end(); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
@@ -25,27 +28,28 @@ const server = http.createServer((req, res) => {
 
 const rooms = new Map();
 const newCode = () => { let c; do { c = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join(''); } while (rooms.has(c)); return c; };
-const makeRoom = pub => { const code = newCode(); const r = new Room(code, pub, c => rooms.delete(c)); rooms.set(code, r); return r; };
-const send = (ws, o) => ws.readyState === 1 && ws.send(JSON.stringify(o));
+const makeRoom = (opts, code = newCode()) => { const r = new Room(code, opts, { store, onEmpty: c => rooms.delete(c) }); rooms.set(code, r); return r; };
+const MAP_KEYS = Object.keys(MAPS);
 
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 4096 });
-wss.on('connection', ws => {
+wss.on('connection', (ws, req) => {
+  const q = new URL(req.url, 'http://x').searchParams;
+  let room;
+  const mode = q.get('mode'), code = (q.get('room') || '').toUpperCase();
+  if (code) room = rooms.get(code);
+  else if (mode === 'quick') room = [...rooms.values()].find(r => r.opts.pub && r.phase === 'lobby' && r.players.size < 8) || makeRoom({ pub: true });
+  else if (mode === 'blitz') room = [...rooms.values()].find(r => r.opts.pub && r.opts.mode === 'blitz' && r.phase === 'lobby' && r.players.size < 8) || makeRoom({ pub: true, mode: 'blitz' });
+  else if (mode === 'solo') room = makeRoom({ startAt: Date.now() + 800, ...(MAPS[q.get('map')] ? { map: q.get('map'), mapFixed: true } : {}) });
+  else if (mode === 'create') room = makeRoom({});
+  else if (mode === 'daily') {
+    const day = dayNumber();
+    room = makeRoom({ daily: true, mode: 'daily', day, map: MAP_KEYS[day % MAP_KEYS.length], mapFixed: true, seed: (day * 2654435761) % 2147483647, startAt: Date.now() + 1500 });
+  }
+  if (!room) { ws.send(JSON.stringify({ t: 'err', text: 'комната не найдена' })); return ws.close(); }
   ws.alive = true; ws.on('pong', () => { ws.alive = true; });
-  let last = 0, burst = 0;
-  ws.on('message', raw => {
-    const now = Date.now(); if (now - last > 1000) { last = now; burst = 0; } if (++burst > 30) return; // антиспам
-    let m; try { m = JSON.parse(raw); } catch { return; }
-    if (m.t === 'hello') {
-      if (ws.room) return;
-      let room;
-      if (m.room) room = rooms.get(String(m.room).toUpperCase());
-      else if (m.mode === 'quick') room = [...rooms.values()].find(r => r.pub && r.phase === 'lobby' && r.players.size < 8) || makeRoom(true);
-      else if (m.mode === 'create') room = makeRoom(false);
-      if (!room) return send(ws, { t: 'err', text: 'комната не найдена' });
-      room.join(ws, m.name, m.token);
-    } else if (ws.room) ws.room.onMsg(ws, m);
-  });
-  ws.on('close', () => ws.room && ws.room.leave(ws));
+  ws.room = null; // привязывается в join
+  ws.on('message', raw => room.handleRaw(ws, raw.toString()));
+  ws.on('close', () => room.leave(ws));
 });
 setInterval(() => wss.clients.forEach(ws => { if (!ws.alive) return ws.terminate(); ws.alive = false; ws.ping(); }), 20000);
 

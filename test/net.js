@@ -1,27 +1,43 @@
-// интеграционная проверка: два клиента → комната → старт → атака → состояние тикает
+// интеграционная проверка: два клиента → комната → чат → старт → порты/союз → солo
 import WebSocket from 'ws';
-const URL = 'ws://localhost:' + (process.env.PORT || 3000) + '/ws';
-const mk = name => new Promise(res => { const ws = new WebSocket(URL); ws.msgs = []; ws.on('message', d => { const m = JSON.parse(d); ws.msgs.push(m); ws.emit('m', m); }); ws.on('open', () => res(ws)); });
+const BASE = 'ws://localhost:' + (process.env.PORT || 3000) + '/ws?';
+const mk = q => new Promise(res => { const ws = new WebSocket(BASE + q); ws.msgs = []; ws.on('message', d => { const m = JSON.parse(d); ws.msgs.push(m); ws.emit('m', m); }); ws.on('open', () => res(ws)); });
 const wait = (ws, t) => new Promise(res => { const f = ws.msgs.find(m => m.t === t); if (f) return res(f); const h = m => { if (m.t === t) { ws.off('m', h); res(m); } }; ws.on('m', h); });
-const a = await mk(), b = await mk();
-a.send(JSON.stringify({ t: 'hello', mode: 'create', name: 'A' }));
+const J = o => JSON.stringify(o), sleep = ms => new Promise(r => setTimeout(r, ms));
+const a = await mk('mode=create');
+a.send(J({ t: 'hello', name: 'A', pid: 'pa' }));
 const j = await wait(a, 'joined');
-b.send(JSON.stringify({ t: 'hello', room: j.room, name: 'B' }));
-await wait(b, 'lobby'); await new Promise(r => setTimeout(r, 200));
-a.send(JSON.stringify({ t: 'start' }));
+const b = await mk('room=' + j.room);
+b.send(J({ t: 'hello', name: 'B', pid: 'pb' }));
+await wait(b, 'lobby'); await sleep(200);
+a.send(J({ t: 'opts', map: 'world', mode: 'blitz' })); await sleep(200);
+const lob = a.msgs.filter(m => m.t === 'lobby').pop();
+console.log('опции лобби:', lob.map, lob.mode);
+b.send(J({ t: 'chat', text: 'привет' }));
+const ch = await wait(a, 'chat'); console.log('чат:', ch.from, ch.text);
+a.send(J({ t: 'start' }));
 const ia = await wait(a, 'init'), ib = await wait(b, 'init');
-console.log('me', ia.me, ib.me, 'prov', ia.map.prov.length, 'pidlen', ia.map.pid.length);
+console.log('карта', ia.map.name, ia.map.W + 'x' + ia.map.H, 'prov', ia.map.prov.length, 'limit', ia.limit, 'me', ia.me, ib.me);
 const s0 = await wait(a, 'state');
 const mine = s0.o.map((o, i) => o === ia.me ? i : -1).filter(i => i >= 0);
-a.send(JSON.stringify({ t: 'act', k: 'draft', p: mine[0] }));
-await new Promise(r => setTimeout(r, 2500));
+const coast = mine.find(i => ia.map.prov[i].coast && !s0.pt[i]);
+a.send(J({ t: 'act', k: 'draft', p: mine[0] }));
+const port = mine.find(i => s0.pt[i]);
+if (port !== undefined) a.send(J({ t: 'act', k: 'ship', p: port }));
+await sleep(2500);
 const last = a.msgs.filter(m => m.t === 'state').pop();
-console.log('ticks', last.k, 'gold', last.gold, 'troops of mine', last.tr[mine[0]], 'allies', last.al);
-// союз игроков
+console.log('тики', last.k, 'золото', last.gold, 'флот в порту', port !== undefined ? last.fl[port] + '(было ' + s0.fl[port] + ')' : 'нет порта');
 const bp = s0.o.map((o, i) => o === ib.me ? i : -1).find(i => i >= 0);
-a.send(JSON.stringify({ t: 'act', k: 'ally', p: bp }));
+a.send(J({ t: 'act', k: 'ally', p: bp }));
 const inv = await new Promise(res => b.on('m', m => m.t === 'ev' && m.kind?.startsWith('invite') && res(m)));
-b.send(JSON.stringify({ t: 'act', k: 'reply', from: ia.me, yes: true }));
-await new Promise(r => setTimeout(r, 300));
-console.log('invite ok:', inv.text, '| allied:', b.msgs.filter(m => m.t === 'state').pop().al.includes(ia.me));
+b.send(J({ t: 'act', k: 'reply', from: ia.me, yes: true })); await sleep(300);
+console.log('союз:', b.msgs.filter(m => m.t === 'state').pop().al.includes(ia.me));
+a.send(J({ t: 'act', k: 'gift', p: bp })); await sleep(300);
+console.log('подарок получен:', b.msgs.some(m => m.t === 'ev' && m.text.includes('подарил')));
+// соло
+const c = await mk('mode=solo&map=mars'); c.send(J({ t: 'hello', name: 'C', pid: 'pc' }));
+const ic = await wait(c, 'init'); console.log('соло старт авто:', ic.map.name, ic.limit);
+// комната не найдена
+const d = await mk('room=ZZZZ'); console.log('несуществующая:', (await wait(d, 'err')).text);
+const lb = await (await fetch('http://localhost:' + (process.env.PORT || 3000) + '/api/leaderboard')).json(); console.log('рейтинг api:', Object.keys(lb).join(','));
 process.exit(0);

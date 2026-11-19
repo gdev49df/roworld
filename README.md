@@ -1,32 +1,44 @@
-# roworld
+# Borderline
 
-онлайн-стратегия в браузере: захватите 80% карты раньше остальных (или будьте лидером, когда выйдет время — 30 минут).
+онлайн-стратегия в браузере: захватите 80% карты (в блице 60%) или будьте лидером, когда выйдет время. название меняется в одном месте — `GAME_NAME` в `public/shared/consts.js`.
 
 - до 8 игроков в комнате, остальные нации (всего 13) — боты с характерами: воин, экономист, дипломат, оппортунист, защитник, ядерщик
-- города, форты, призыв, союзы между игроками, предательство, бомба
-- быстрая игра (публичная комната) или своя комната по коду
-- если игрок отключился — нацией временно управляет ии, можно вернуться
+- карты: случайные острова, пангея, мир, европа, марс
+- режимы: классика 30 мин, блиц 10 мин, команды 2×2, ежедневный турнир
+- города, форты, призыв, порты и флот (морские атаки, блокады), союзы, подарки золота, бомба
+- чат, рейтинг игроков и таблица ежедневного турнира
+- отключился игрок — нацией временно управляет ии, можно вернуться
 
-## запуск
+## запуск локально
 
 ```bash
 npm install
-npm start        # http://localhost:3000
-npm test         # симуляция партий ботов
+npm start            # обычный node, http://localhost:3000 (рейтинг в data/store.json)
+npm run dev:cf       # то же на локальном cloudflare runtime (wrangler dev)
+npm test             # симуляция партий ботов на всех картах
 ```
+
+## деплой на cloudflare (workers + durable objects)
+
+1. `npx wrangler login`
+2. `npx wrangler deploy` — игра уже работает на `*.workers.dev` (комната = durable object, статика из `public/`)
+3. рейтинг и турнир (по желанию):
+   ```bash
+   npx wrangler d1 create roworld          # скопируйте database_id
+   # раскомментируйте блок [[d1_databases]] в wrangler.toml и вставьте id
+   npx wrangler d1 execute roworld --remote --file=schema.sql
+   npx wrangler deploy
+   ```
+своё имя домена — в панели cloudflare: workers → roworld → settings → domains.
 
 ## структура
 
 ```
-server/   index.js (http + websocket), room.js (комнаты, лобби), game.js (вся логика), map.js (генерация)
-shared/   consts.js (константы для сервера и клиента)
-public/   index.html, css/style.css, js/{main,net,render,ui}.js
-test/     sim.js (боты), net.js (интеграция двух клиентов; нужен запущенный сервер)
+server/    game.js (вся логика), room.js (комнаты, лобби, чат, итоги), map.js, index.js (node), store-file.js
+worker/    index.js (cloudflare worker + durable object RoomDO), d1-store.js
+public/    index.html, css/, js/{main,net,render,ui}.js
+public/shared/   consts.js, maps.js (карты), rng.js — общий код клиента и сервера
+test/      sim.js (боты), net.js (интеграция; нужен запущенный сервер, PORT=…)
 ```
 
-сервер авторитетный: клиент шлёт только команды (`act`), состояние приходит раз в секунду.
-
-## деплой
-
-нужен хостинг с постоянным node-процессом и websocket (render, railway, fly.io, vps). github pages не подойдёт.
-`render.yaml` и `Dockerfile` уже есть.
+сервер авторитетный: клиент шлёт только команды, состояние приходит раз в секунду. рейтинг привязан к анониму из localStorage — для защиты от подделки позже стоит добавить вход через telegram.

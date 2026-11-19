@@ -4,7 +4,20 @@
   "description": "roworld — онлайн-стратегия: захвати 80% карты",
   "type": "module",
   "main": "server/index.js",
-  "scripts": { "start": "node server/index.js", "dev": "node --watch server/index.js", "test": "node test/sim.js" },
-  "engines": { "node": ">=18" },
-  "dependencies": { "ws": "^8.18.0" }
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node test/sim.js",
+    "dev:cf": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
 }
